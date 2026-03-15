@@ -1,0 +1,19 @@
+{
+  "apps": [
+    {
+      "name": "meeting-copilot",
+      "script": "uvicorn",
+      "args": "main:app --host 127.0.0.1 --port 8001 --workers 2",
+      "cwd": "/home/work/.openclaw/workspace/meeting-copilot/app",
+      "interpreter": "python3",
+      "interpreter_args": "-m",
+      "env": {
+        "OPENAI_API_KEY": "",
+        "OPENAI_MODEL": "gpt-4o-mini"
+      },
+      "watch": false,
+      "autorestart": true,
+      "max_restarts": 10
+    }
+  ]
+}

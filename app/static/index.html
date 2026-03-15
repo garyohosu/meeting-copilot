@@ -1,0 +1,931 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Meeting Copilot - 議事録・メール自動化</title>
+<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+<style>
+  :root {
+    --primary: #4f46e5;
+    --primary-hover: #4338ca;
+    --secondary: #6b7280;
+    --success: #10b981;
+    --danger: #ef4444;
+    --bg: #f8fafc;
+    --card: #ffffff;
+    --border: #e2e8f0;
+    --text: #1e293b;
+    --text-muted: #64748b;
+    --radius: 12px;
+    --shadow: 0 1px 3px rgba(0,0,0,0.1), 0 1px 2px rgba(0,0,0,0.06);
+    --shadow-lg: 0 10px 15px -3px rgba(0,0,0,0.1), 0 4px 6px -2px rgba(0,0,0,0.05);
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.6;
+    min-height: 100vh;
+  }
+
+  header {
+    background: linear-gradient(135deg, var(--primary) 0%, #7c3aed 100%);
+    color: white;
+    padding: 1.25rem 2rem;
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    box-shadow: var(--shadow-lg);
+    position: sticky;
+    top: 0;
+    z-index: 100;
+  }
+
+  header h1 { font-size: 1.4rem; font-weight: 700; letter-spacing: -0.5px; }
+  header span.badge {
+    background: rgba(255,255,255,0.2);
+    font-size: 0.7rem;
+    padding: 2px 8px;
+    border-radius: 20px;
+    font-weight: 600;
+  }
+
+  .container { max-width: 1200px; margin: 0 auto; padding: 2rem; }
+
+  .layout { display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; }
+  @media (max-width: 900px) { .layout { grid-template-columns: 1fr; } }
+
+  .card {
+    background: var(--card);
+    border-radius: var(--radius);
+    border: 1px solid var(--border);
+    box-shadow: var(--shadow);
+    overflow: hidden;
+  }
+
+  .card-header {
+    padding: 1rem 1.25rem;
+    border-bottom: 1px solid var(--border);
+    font-weight: 600;
+    font-size: 0.9rem;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  .card-body { padding: 1.25rem; }
+
+  /* 入力フォーム */
+  .form-group { margin-bottom: 1rem; }
+  .form-label {
+    display: block;
+    font-size: 0.875rem;
+    font-weight: 600;
+    margin-bottom: 0.4rem;
+    color: var(--text);
+  }
+  .form-label .optional {
+    font-weight: 400;
+    color: var(--text-muted);
+    font-size: 0.75rem;
+  }
+
+  input[type=text], input[type=url], input[type=datetime-local], textarea, select {
+    width: 100%;
+    padding: 0.6rem 0.85rem;
+    border: 1.5px solid var(--border);
+    border-radius: 8px;
+    font-size: 0.9rem;
+    color: var(--text);
+    background: #fff;
+    transition: border-color 0.15s, box-shadow 0.15s;
+    font-family: inherit;
+  }
+  input:focus, textarea:focus, select:focus {
+    outline: none;
+    border-color: var(--primary);
+    box-shadow: 0 0 0 3px rgba(79,70,229,0.1);
+  }
+  textarea { resize: vertical; min-height: 140px; }
+
+  .radio-group {
+    display: flex;
+    gap: 1rem;
+    margin-bottom: 0.75rem;
+  }
+  .radio-item {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    cursor: pointer;
+    font-size: 0.9rem;
+    padding: 0.5rem 1rem;
+    border: 1.5px solid var(--border);
+    border-radius: 8px;
+    transition: all 0.15s;
+    user-select: none;
+  }
+  .radio-item:has(input:checked) {
+    border-color: var(--primary);
+    background: rgba(79,70,229,0.05);
+    color: var(--primary);
+    font-weight: 600;
+  }
+  .radio-item input { accent-color: var(--primary); }
+
+  #urlSection, #textSection { display: none; }
+  #urlSection.active, #textSection.active { display: block; }
+
+  .char-counter {
+    text-align: right;
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    margin-top: 0.25rem;
+  }
+  .char-counter.warn { color: var(--danger); }
+
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.65rem 1.5rem;
+    border: none;
+    border-radius: 8px;
+    font-size: 0.9rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.15s;
+    font-family: inherit;
+  }
+  .btn-primary {
+    background: var(--primary);
+    color: white;
+    width: 100%;
+    justify-content: center;
+    font-size: 1rem;
+    padding: 0.8rem;
+  }
+  .btn-primary:hover:not(:disabled) { background: var(--primary-hover); transform: translateY(-1px); box-shadow: var(--shadow-lg); }
+  .btn-primary:disabled { opacity: 0.6; cursor: not-allowed; }
+  .btn-sm {
+    padding: 0.35rem 0.8rem;
+    font-size: 0.8rem;
+    border-radius: 6px;
+    border: 1.5px solid var(--border);
+    background: #fff;
+    color: var(--text-muted);
+  }
+  .btn-sm:hover { border-color: var(--primary); color: var(--primary); }
+  .btn-copy { background: var(--success); color: white; border: none; }
+  .btn-copy:hover { background: #059669; }
+  .btn-regen { background: var(--primary); color: white; border: none; font-size: 0.8rem; padding: 0.35rem 0.8rem; border-radius: 6px; }
+  .btn-regen:hover { background: var(--primary-hover); }
+  .btn-save {
+    background: #fff;
+    color: var(--primary);
+    border: 1.5px solid var(--primary);
+    padding: 0.5rem 1.25rem;
+  }
+  .btn-save:hover { background: rgba(79,70,229,0.05); }
+
+  /* タブ */
+  #resultsSection { display: none; }
+  #resultsSection.visible { display: block; }
+
+  .tab-bar {
+    display: flex;
+    gap: 0.25rem;
+    border-bottom: 2px solid var(--border);
+    padding: 0 1.25rem;
+    overflow-x: auto;
+    background: var(--card);
+  }
+  .tab-btn {
+    padding: 0.75rem 1rem;
+    border: none;
+    background: none;
+    font-size: 0.875rem;
+    font-weight: 500;
+    color: var(--text-muted);
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+    margin-bottom: -2px;
+    white-space: nowrap;
+    transition: color 0.15s;
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+  }
+  .tab-btn.active {
+    color: var(--primary);
+    border-bottom-color: var(--primary);
+    font-weight: 600;
+  }
+  .tab-btn:hover:not(.active) { color: var(--text); }
+
+  .tab-panel { display: none; }
+  .tab-panel.active { display: block; }
+
+  .result-content {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 1.25rem;
+    font-size: 0.9rem;
+    max-height: 500px;
+    overflow-y: auto;
+    line-height: 1.8;
+  }
+  .result-content h1, .result-content h2, .result-content h3 {
+    margin: 0.75rem 0 0.4rem;
+    font-weight: 700;
+    color: var(--text);
+  }
+  .result-content h1 { font-size: 1.2rem; }
+  .result-content h2 { font-size: 1.05rem; border-bottom: 1px solid var(--border); padding-bottom: 0.25rem; }
+  .result-content h3 { font-size: 0.95rem; }
+  .result-content p { margin: 0.4rem 0; }
+  .result-content ul, .result-content ol { padding-left: 1.5rem; margin: 0.4rem 0; }
+  .result-content li { margin: 0.2rem 0; }
+  .result-content strong { font-weight: 700; }
+
+  .todo-list { list-style: none; padding: 0; }
+  .todo-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.75rem;
+    padding: 0.75rem;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    margin-bottom: 0.5rem;
+    background: var(--card);
+  }
+  .todo-task { font-weight: 600; flex: 1; }
+  .todo-meta { font-size: 0.8rem; color: var(--text-muted); display: flex; gap: 0.75rem; flex-wrap: wrap; margin-top: 0.2rem; }
+  .todo-meta span { display: flex; align-items: center; gap: 0.3rem; }
+  .todo-icon { font-size: 1.25rem; }
+
+  .decision-list, .oq-list { list-style: none; padding: 0; }
+  .decision-item, .oq-item {
+    padding: 0.6rem 0.9rem;
+    border-left: 3px solid var(--primary);
+    background: rgba(79,70,229,0.04);
+    border-radius: 0 8px 8px 0;
+    margin-bottom: 0.5rem;
+    font-size: 0.9rem;
+  }
+  .oq-item { border-left-color: #f59e0b; background: rgba(245,158,11,0.05); }
+
+  .tab-actions {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.75rem 1.25rem;
+    border-top: 1px solid var(--border);
+    gap: 0.5rem;
+    flex-wrap: wrap;
+  }
+
+  .regen-area {
+    padding: 0.75rem 1.25rem;
+    border-top: 1px solid var(--border);
+    background: var(--bg);
+    display: none;
+  }
+  .regen-area.open { display: block; }
+  .regen-row { display: flex; gap: 0.5rem; align-items: flex-end; }
+  .regen-row textarea { min-height: 56px; flex: 1; font-size: 0.85rem; }
+
+  /* メール テンプレート */
+  .mail-template-bar {
+    padding: 0.75rem 1.25rem;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    background: var(--bg);
+  }
+  .mail-template-bar label { font-size: 0.85rem; font-weight: 600; white-space: nowrap; }
+  .mail-template-bar select { max-width: 200px; }
+
+  /* エラー・ローディング */
+  .alert {
+    padding: 0.85rem 1.1rem;
+    border-radius: 8px;
+    font-size: 0.875rem;
+    margin-bottom: 1rem;
+    display: flex;
+    align-items: flex-start;
+    gap: 0.5rem;
+  }
+  .alert-error { background: #fef2f2; border: 1px solid #fecaca; color: #991b1b; }
+  .alert-info { background: #eff6ff; border: 1px solid #bfdbfe; color: #1e40af; }
+
+  .loader {
+    display: none;
+    align-items: center;
+    justify-content: center;
+    gap: 0.75rem;
+    padding: 2.5rem;
+    flex-direction: column;
+    color: var(--text-muted);
+    font-size: 0.9rem;
+  }
+  .loader.visible { display: flex; }
+  .spinner {
+    width: 36px; height: 36px;
+    border: 3px solid var(--border);
+    border-top-color: var(--primary);
+    border-radius: 50%;
+    animation: spin 0.75s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .results-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 1rem 1.25rem;
+    border-bottom: 1px solid var(--border);
+  }
+  .results-header h2 { font-size: 1rem; font-weight: 700; }
+
+  .copied-feedback {
+    position: fixed;
+    bottom: 1.5rem;
+    left: 50%;
+    transform: translateX(-50%) translateY(100px);
+    background: #1e293b;
+    color: white;
+    padding: 0.6rem 1.25rem;
+    border-radius: 999px;
+    font-size: 0.875rem;
+    font-weight: 500;
+    transition: transform 0.25s ease;
+    z-index: 1000;
+    pointer-events: none;
+  }
+  .copied-feedback.show { transform: translateX(-50%) translateY(0); }
+
+  .empty-state {
+    text-align: center;
+    padding: 3rem 1.5rem;
+    color: var(--text-muted);
+  }
+  .empty-state .icon { font-size: 3rem; margin-bottom: 0.75rem; }
+  .empty-state p { font-size: 0.9rem; }
+</style>
+</head>
+<body>
+
+<header>
+  <span style="font-size:1.5rem;">📋</span>
+  <h1>Meeting Copilot</h1>
+  <span class="badge">Phase 1</span>
+  <span style="flex:1"></span>
+  <span style="font-size:0.8rem;opacity:0.8;">議事録・メール自動化</span>
+</header>
+
+<div class="container">
+  <div class="layout">
+    <!-- 左カラム：入力フォーム -->
+    <div>
+      <div class="card" style="margin-bottom:1.25rem;">
+        <div class="card-header">📥 入力</div>
+        <div class="card-body">
+          <div id="errorArea"></div>
+
+          <div class="form-group">
+            <label class="form-label">入力方式</label>
+            <div class="radio-group">
+              <label class="radio-item">
+                <input type="radio" name="inputType" value="text" checked onchange="switchInput(this.value)">
+                📝 本文貼り付け
+              </label>
+              <label class="radio-item">
+                <input type="radio" name="inputType" value="url" onchange="switchInput(this.value)">
+                🔗 URL入力
+              </label>
+            </div>
+          </div>
+
+          <div id="textSection" class="active">
+            <div class="form-group">
+              <label class="form-label">文字起こし本文</label>
+              <textarea id="transcriptText" placeholder="Pixel Recorder やその他の文字起こしサービスの結果を貼り付けてください..."
+                oninput="updateCharCount()"></textarea>
+              <div class="char-counter" id="charCounter">0 / 50,000文字</div>
+            </div>
+          </div>
+
+          <div id="urlSection">
+            <div class="form-group">
+              <label class="form-label">文字起こしURL</label>
+              <input type="url" id="transcriptUrl" placeholder="https://...">
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card" style="margin-bottom:1.25rem;">
+        <div class="card-header">⚙️ 会議情報 <span style="font-weight:400;color:var(--text-muted)">(任意)</span></div>
+        <div class="card-body">
+          <div class="form-group">
+            <label class="form-label">会議名 <span class="optional">任意</span></label>
+            <input type="text" id="meetingTitle" placeholder="例: 週次定例会議">
+          </div>
+          <div class="form-group">
+            <label class="form-label">日時 <span class="optional">任意</span></label>
+            <input type="datetime-local" id="meetingDateTime">
+          </div>
+          <div class="form-group">
+            <label class="form-label">出席者 <span class="optional">任意</span></label>
+            <input type="text" id="participants" placeholder="例: 田中、鈴木、佐藤">
+          </div>
+          <div class="form-group">
+            <label class="form-label">メール種別 <span class="optional">任意</span></label>
+            <select id="mailPurpose">
+              <option value="report">会議報告メール</option>
+              <option value="share">議事録共有メール</option>
+              <option value="request">依頼メール</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">追加指示 <span class="optional">任意 — 全タブ共通</span></label>
+            <textarea id="instructions" style="min-height:72px;" placeholder="例: 簡潔にまとめてください。英語の発言は日本語に翻訳してください。"></textarea>
+          </div>
+        </div>
+      </div>
+
+      <button class="btn btn-primary" id="generateBtn" onclick="generate()">
+        ✨ 生成する
+      </button>
+    </div>
+
+    <!-- 右カラム：結果 -->
+    <div>
+      <div class="card" style="min-height:400px;">
+        <div id="emptyState" class="empty-state">
+          <div class="icon">🤖</div>
+          <p>文字起こしを入力して<br>「生成する」を押してください</p>
+        </div>
+
+        <div class="loader" id="loader">
+          <div class="spinner"></div>
+          AIが処理中です... しばらくお待ちください
+        </div>
+
+        <div id="resultsSection">
+          <div class="results-header">
+            <h2>✅ 生成結果</h2>
+            <button class="btn btn-save" onclick="saveMarkdown()">💾 Markdownで保存</button>
+          </div>
+
+          <!-- タブバー -->
+          <div class="tab-bar">
+            <button class="tab-btn active" onclick="switchTab('summary', this)">📊 要約</button>
+            <button class="tab-btn" onclick="switchTab('minutes', this)">📄 議事録</button>
+            <button class="tab-btn" onclick="switchTab('mail', this)">✉️ メール</button>
+            <button class="tab-btn" onclick="switchTab('todos', this)">✅ TODO</button>
+            <button class="tab-btn" onclick="switchTab('decisions', this)">🎯 決定事項</button>
+          </div>
+
+          <!-- 要約 -->
+          <div id="panel-summary" class="tab-panel active">
+            <div class="card-body">
+              <div class="result-content" id="content-summary"></div>
+            </div>
+            <div class="tab-actions">
+              <div style="display:flex;gap:0.5rem;">
+                <button class="btn btn-copy btn-sm" onclick="copyTab('summary')">📋 コピー</button>
+                <button class="btn btn-sm" onclick="toggleRegen('summary')">🔄 再生成</button>
+              </div>
+            </div>
+            <div class="regen-area" id="regen-summary">
+              <div class="regen-row">
+                <textarea id="regenInst-summary" placeholder="追加指示（例:3行以内で）"></textarea>
+                <button class="btn btn-regen" onclick="regenerate('summary')">実行</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- 議事録 -->
+          <div id="panel-minutes" class="tab-panel">
+            <div class="card-body">
+              <div class="result-content" id="content-minutes"></div>
+            </div>
+            <div class="tab-actions">
+              <div style="display:flex;gap:0.5rem;">
+                <button class="btn btn-copy btn-sm" onclick="copyTab('minutes')">📋 コピー</button>
+                <button class="btn btn-sm" onclick="toggleRegen('minutes')">🔄 再生成</button>
+              </div>
+            </div>
+            <div class="regen-area" id="regen-minutes">
+              <div class="regen-row">
+                <textarea id="regenInst-minutes" placeholder="追加指示（例:より詳細な議題分けで）"></textarea>
+                <button class="btn btn-regen" onclick="regenerate('minutes')">実行</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- メール -->
+          <div id="panel-mail" class="tab-panel">
+            <div class="mail-template-bar">
+              <label>📧 メール種別:</label>
+              <select id="mailTemplateSelect" onchange="changeMailTemplate()">
+                <option value="report">会議報告メール</option>
+                <option value="share">議事録共有メール</option>
+                <option value="request">依頼メール</option>
+              </select>
+            </div>
+            <div class="card-body">
+              <div class="result-content" id="content-mail"></div>
+            </div>
+            <div class="tab-actions">
+              <div style="display:flex;gap:0.5rem;">
+                <button class="btn btn-copy btn-sm" onclick="copyTab('mail')">📋 コピー</button>
+                <button class="btn btn-sm" onclick="toggleRegen('mail')">🔄 再生成</button>
+              </div>
+            </div>
+            <div class="regen-area" id="regen-mail">
+              <div class="regen-row">
+                <textarea id="regenInst-mail" placeholder="追加指示（例:件名も含めてください）"></textarea>
+                <button class="btn btn-regen" onclick="regenerate('mail')">実行</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- TODO -->
+          <div id="panel-todos" class="tab-panel">
+            <div class="card-body">
+              <ul class="todo-list" id="content-todos"></ul>
+            </div>
+            <div class="tab-actions">
+              <div style="display:flex;gap:0.5rem;">
+                <button class="btn btn-copy btn-sm" onclick="copyTab('todos')">📋 コピー</button>
+                <button class="btn btn-sm" onclick="toggleRegen('todos')">🔄 再生成</button>
+              </div>
+            </div>
+            <div class="regen-area" id="regen-todos">
+              <div class="regen-row">
+                <textarea id="regenInst-todos" placeholder="追加指示（例:優先度も付けてください）"></textarea>
+                <button class="btn btn-regen" onclick="regenerate('todos')">実行</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- 決定事項 -->
+          <div id="panel-decisions" class="tab-panel">
+            <div class="card-body">
+              <ul class="decision-list" id="content-decisions"></ul>
+              <div id="content-oq-wrapper" style="margin-top:1.5rem;">
+                <div style="font-size:0.85rem;font-weight:700;color:var(--text-muted);margin-bottom:0.5rem;">❓ 未解決事項</div>
+                <ul class="oq-list" id="content-oq"></ul>
+              </div>
+            </div>
+            <div class="tab-actions">
+              <div style="display:flex;gap:0.5rem;">
+                <button class="btn btn-copy btn-sm" onclick="copyTab('decisions')">📋 コピー</button>
+                <button class="btn btn-sm" onclick="toggleRegen('decisions')">🔄 再生成</button>
+              </div>
+            </div>
+            <div class="regen-area" id="regen-decisions">
+              <div class="regen-row">
+                <textarea id="regenInst-decisions" placeholder="追加指示（例:より具体的に）"></textarea>
+                <button class="btn btn-regen" onclick="regenerate('decisions')">実行</button>
+              </div>
+            </div>
+          </div>
+
+        </div><!-- /resultsSection -->
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="copied-feedback" id="copiedFeedback">コピーしました ✓</div>
+
+<script>
+// ========== 状態管理 ==========
+let currentData = null;
+let currentTranscript = '';
+let currentMeta = {};
+
+// ========== 入力切替 ==========
+function switchInput(type) {
+  document.getElementById('textSection').classList.toggle('active', type === 'text');
+  document.getElementById('urlSection').classList.toggle('active', type === 'url');
+}
+
+function updateCharCount() {
+  const text = document.getElementById('transcriptText').value;
+  const len = text.length;
+  const el = document.getElementById('charCounter');
+  el.textContent = `${len.toLocaleString()} / 50,000文字`;
+  el.classList.toggle('warn', len > 50000);
+}
+
+// ========== 生成 ==========
+async function generate() {
+  const inputType = document.querySelector('input[name="inputType"]:checked').value;
+  const url = document.getElementById('transcriptUrl').value.trim();
+  const text = document.getElementById('transcriptText').value.trim();
+
+  clearError();
+
+  if (inputType === 'url' && !url) return showError('URLを入力してください。');
+  if (inputType === 'text' && !text) return showError('文字起こし本文を入力してください。');
+  if (inputType === 'text' && text.length < 20) return showError('文字起こしの内容が短すぎます。20文字以上入力してください。');
+  if (inputType === 'text' && text.length > 50000) return showError('入力文字数が上限を超えています。50,000文字以下にしてください。');
+
+  const meta = getMeta();
+  const body = {
+    inputType,
+    url: inputType === 'url' ? url : null,
+    transcriptText: inputType === 'text' ? text : null,
+    ...meta,
+    instructions: document.getElementById('instructions').value.trim() || null,
+  };
+
+  setLoading(true);
+
+  try {
+    const res = await fetch('/api/generate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || 'エラーが発生しました。');
+    currentData = data;
+    currentTranscript = inputType === 'text' ? text : data._transcript || text;
+    currentMeta = meta;
+    renderResults(data);
+  } catch (e) {
+    showError(e.message);
+  } finally {
+    setLoading(false);
+  }
+}
+
+function getMeta() {
+  const dt = document.getElementById('meetingDateTime').value;
+  return {
+    meetingTitle: document.getElementById('meetingTitle').value.trim() || null,
+    meetingDateTime: dt ? dt.replace('T', ' ') : null,
+    participants: document.getElementById('participants').value.trim() || null,
+    mailPurpose: document.getElementById('mailPurpose').value,
+  };
+}
+
+// ========== 結果描画 ==========
+function renderResults(data) {
+  document.getElementById('emptyState').style.display = 'none';
+  const rs = document.getElementById('resultsSection');
+  rs.classList.add('visible');
+
+  // 要約
+  document.getElementById('content-summary').innerHTML = marked.parse(data.summary || '（要約なし）');
+
+  // 議事録
+  document.getElementById('content-minutes').innerHTML = marked.parse(data.minutes || '（議事録なし）');
+
+  // メール
+  document.getElementById('content-mail').innerHTML = marked.parse(data.mailDraft || '（メール文なし）');
+
+  // TODO
+  const todoList = document.getElementById('content-todos');
+  todoList.innerHTML = '';
+  if (data.todos && data.todos.length > 0) {
+    data.todos.forEach(t => {
+      const li = document.createElement('li');
+      li.className = 'todo-item';
+      li.innerHTML = `
+        <span class="todo-icon">☐</span>
+        <div style="flex:1">
+          <div class="todo-task">${escHtml(t.task || '')}</div>
+          <div class="todo-meta">
+            ${t.owner ? `<span>👤 ${escHtml(t.owner)}</span>` : ''}
+            ${t.due ? `<span>📅 ${escHtml(t.due)}</span>` : ''}
+            ${t.priority ? `<span>⚡ ${escHtml(t.priority)}</span>` : ''}
+          </div>
+        </div>
+      `;
+      todoList.appendChild(li);
+    });
+  } else {
+    todoList.innerHTML = '<li style="color:var(--text-muted);font-size:0.9rem;padding:0.5rem;">TODOは見つかりませんでした。</li>';
+  }
+
+  // 決定事項
+  renderList('content-decisions', data.decisions, 'decision-item', '決定事項は見つかりませんでした。');
+  renderList('content-oq', data.openQuestions, 'oq-item', '未解決事項はありません。');
+}
+
+function renderList(id, items, cls, emptyMsg) {
+  const el = document.getElementById(id);
+  el.innerHTML = '';
+  if (items && items.length > 0) {
+    items.forEach(item => {
+      const li = document.createElement('li');
+      li.className = cls;
+      li.textContent = item;
+      el.appendChild(li);
+    });
+  } else {
+    el.innerHTML = `<li style="color:var(--text-muted);font-size:0.9rem;padding:0.5rem;">${emptyMsg}</li>`;
+  }
+}
+
+// ========== タブ切替 ==========
+function switchTab(tab, btn) {
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+  btn.classList.add('active');
+  document.getElementById('panel-' + tab).classList.add('active');
+}
+
+// ========== コピー ==========
+async function copyTab(tab) {
+  let text = '';
+  if (tab === 'summary') text = document.getElementById('content-summary').innerText;
+  else if (tab === 'minutes') text = document.getElementById('content-minutes').innerText;
+  else if (tab === 'mail') text = document.getElementById('content-mail').innerText;
+  else if (tab === 'todos') {
+    text = (currentData?.todos || []).map(t => {
+      let s = `☐ ${t.task}`;
+      if (t.owner) s += ` [担当: ${t.owner}]`;
+      if (t.due) s += ` [期限: ${t.due}]`;
+      return s;
+    }).join('\n');
+  } else if (tab === 'decisions') {
+    text = (currentData?.decisions || []).map(d => `・${d}`).join('\n');
+    if (currentData?.openQuestions?.length > 0) {
+      text += '\n\n【未解決事項】\n' + currentData.openQuestions.map(q => `・${q}`).join('\n');
+    }
+  }
+  try {
+    await navigator.clipboard.writeText(text);
+    showCopied();
+  } catch {
+    showError('コピーに失敗しました。手動でコピーしてください。');
+  }
+}
+
+function showCopied() {
+  const el = document.getElementById('copiedFeedback');
+  el.classList.add('show');
+  setTimeout(() => el.classList.remove('show'), 2000);
+}
+
+// ========== 再生成 ==========
+function toggleRegen(tab) {
+  const area = document.getElementById('regen-' + tab);
+  area.classList.toggle('open');
+}
+
+async function regenerate(tab) {
+  if (!currentData) return;
+  const tabInst = document.getElementById('regenInst-' + tab).value.trim();
+  const globalInst = document.getElementById('instructions').value.trim();
+
+  const body = {
+    tab,
+    transcriptText: currentTranscript,
+    ...currentMeta,
+    globalInstructions: globalInst || null,
+    tabInstructions: tabInst || null,
+  };
+
+  const btn = document.querySelector(`#regen-${tab} .btn-regen`);
+  btn.textContent = '処理中...';
+  btn.disabled = true;
+
+  try {
+    const res = await fetch('/api/regenerate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || 'エラーが発生しました。');
+
+    // 結果を反映
+    const content = data.content;
+    if (tab === 'summary') {
+      currentData.summary = content;
+      document.getElementById('content-summary').innerHTML = marked.parse(content);
+    } else if (tab === 'minutes') {
+      currentData.minutes = content;
+      document.getElementById('content-minutes').innerHTML = marked.parse(content);
+    } else if (tab === 'mail') {
+      currentData.mailDraft = content;
+      document.getElementById('content-mail').innerHTML = marked.parse(content);
+    } else if (tab === 'todos') {
+      try {
+        const parsed = JSON.parse(content);
+        currentData.todos = Array.isArray(parsed) ? parsed : (parsed.todos || []);
+        renderResults(currentData);
+        switchTab('todos', document.querySelectorAll('.tab-btn')[3]);
+      } catch { document.getElementById('content-todos').innerHTML = `<pre style="white-space:pre-wrap;font-size:0.85rem">${escHtml(content)}</pre>`; }
+    } else if (tab === 'decisions') {
+      try {
+        const parsed = JSON.parse(content);
+        currentData.decisions = Array.isArray(parsed) ? parsed : (parsed.decisions || []);
+        renderList('content-decisions', currentData.decisions, 'decision-item', '決定事項は見つかりませんでした。');
+      } catch { document.getElementById('content-decisions').innerHTML = `<pre style="white-space:pre-wrap;font-size:0.85rem">${escHtml(content)}</pre>`; }
+    }
+
+    document.getElementById('regen-' + tab).classList.remove('open');
+  } catch (e) {
+    showError(e.message);
+  } finally {
+    btn.textContent = '実行';
+    btn.disabled = false;
+  }
+}
+
+// ========== メールテンプレート切替 ==========
+async function changeMailTemplate() {
+  if (!currentData || !currentTranscript) return;
+  const purpose = document.getElementById('mailTemplateSelect').value;
+  currentMeta.mailPurpose = purpose;
+  document.getElementById('mailPurpose').value = purpose;
+
+  await regenerate('mail');
+}
+
+// ========== Markdown保存 ==========
+function saveMarkdown() {
+  if (!currentData) return;
+  const title = currentMeta.meetingTitle || '会議';
+  const dt = currentMeta.meetingDateTime || new Date().toLocaleDateString('ja-JP');
+
+  let md = `# Meeting Copilot 生成結果\n\n`;
+  md += `**会議名:** ${title}  \n`;
+  md += `**日時:** ${dt}  \n`;
+  md += `**出席者:** ${currentMeta.participants || '（不明）'}  \n\n`;
+  md += `---\n\n`;
+  md += `## 要約\n\n${currentData.summary || ''}\n\n`;
+  md += `---\n\n`;
+  md += `## 議事録\n\n${currentData.minutes || ''}\n\n`;
+  md += `---\n\n`;
+  md += `## メール文\n\n${currentData.mailDraft || ''}\n\n`;
+  md += `---\n\n`;
+  md += `## TODO\n\n`;
+  (currentData.todos || []).forEach(t => {
+    md += `- [ ] ${t.task}`;
+    if (t.owner) md += ` (担当: ${t.owner})`;
+    if (t.due) md += ` (期限: ${t.due})`;
+    md += '\n';
+  });
+  md += `\n---\n\n`;
+  md += `## 決定事項\n\n`;
+  (currentData.decisions || []).forEach(d => { md += `- ${d}\n`; });
+  if (currentData.openQuestions && currentData.openQuestions.length > 0) {
+    md += `\n## 未解決事項\n\n`;
+    currentData.openQuestions.forEach(q => { md += `- ${q}\n`; });
+  }
+
+  const blob = new Blob([md], { type: 'text/markdown;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `meeting-copilot-${title}-${new Date().toISOString().slice(0,10)}.md`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+// ========== UI ユーティリティ ==========
+function setLoading(on) {
+  document.getElementById('loader').classList.toggle('visible', on);
+  document.getElementById('generateBtn').disabled = on;
+  document.getElementById('generateBtn').textContent = on ? '⏳ 処理中...' : '✨ 生成する';
+  if (on) {
+    document.getElementById('emptyState').style.display = 'none';
+    document.getElementById('resultsSection').classList.remove('visible');
+  }
+}
+
+function showError(msg) {
+  document.getElementById('errorArea').innerHTML =
+    `<div class="alert alert-error">⚠️ ${escHtml(msg)}</div>`;
+}
+
+function clearError() {
+  document.getElementById('errorArea').innerHTML = '';
+}
+
+function escHtml(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+</script>
+</body>
+</html>
